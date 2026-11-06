@@ -1,29 +1,52 @@
 using ClaimReader.Api.Data;
+using ClaimReader.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddProblemDetails();
 
-builder.Services.AddDbContext<AppDbContext>(o =>
-    o.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+builder.Services.AddDbContext<AppDbContext>((sp, o) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    if (config.GetValue<bool>("UseInMemoryDb"))
+        o.UseInMemoryDatabase("claims-tests");
+    else
+        o.UseNpgsql(config.GetConnectionString("Default"));
+});
+
+builder.Services.Configure<GeminiOptions>(builder.Configuration.GetSection("Gemini"));
+builder.Services.AddHttpClient<IExtractionService, GeminiExtractionService>(c =>
+    c.Timeout = TimeSpan.FromSeconds(90));
+builder.Services.AddSingleton<FileStorage>();
+
+var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
+              ?? ["http://localhost:4200"];
+builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
+    p.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod()));
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+if (app.Configuration.GetValue<bool>("RunMigrations"))
+{
+    using var scope = app.Services.CreateScope();
+    scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.Migrate();
+}
+
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
-
+app.UseCors();
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { }
