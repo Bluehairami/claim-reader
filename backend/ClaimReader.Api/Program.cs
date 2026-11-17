@@ -16,6 +16,15 @@ builder.Services.AddDbContext<AppDbContext>((sp, o) =>
     else
         o.UseNpgsql(config.GetConnectionString("Default"));
 });
+builder.Services.AddDbContext<AppDbContext>((sp, o) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    if (config.GetValue<bool>("UseInMemoryDb"))
+        o.UseInMemoryDatabase("claims-tests");
+    else
+        o.UseNpgsql(config.GetConnectionString("Default"),
+            npgsqlOptions => npgsqlOptions.CommandTimeout(180)); // Increase timeout to 180 seconds
+});
 
 builder.Services.Configure<GeminiOptions>(builder.Configuration.GetSection("Gemini"));
 builder.Services.AddHttpClient<IExtractionService, GeminiExtractionService>(c =>

@@ -14,6 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(c => c.Status).HasConversion<string>().HasMaxLength(20);
             e.Property(c => c.ClaimAmount).HasPrecision(12, 2);
             e.Property(c => c.RawModelJson).HasColumnType("jsonb");
+            e.HasIndex(c => c.CreatedAt); // Add this line to create an index
         });
     }
 }
